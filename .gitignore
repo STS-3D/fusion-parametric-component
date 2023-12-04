@@ -1,0 +1,7 @@
+.env
+.vscode
+Parametric-Component/.env
+*.env
+Parametric-Component/.vscode
+*.vscode
+*.DS_Store

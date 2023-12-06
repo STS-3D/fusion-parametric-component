@@ -13,7 +13,6 @@ from adsk.fusion import SketchText, Occurrence, ModelParameters, Component
 app = adsk.core.Application.get()
 ui = app.userInterface
 
-design = app.activeProduct #stsi
 
 # from default extension
 CMD_NAME = os.path.basename(os.path.dirname(__file__))
@@ -33,8 +32,9 @@ PANEL_AFTER = config.my_panel_after
 CONFIG = config.MODEL_CONFIG_DATA
 
 SPREADSHEET = config.SPREADSHEET
+INPUT_TABLE_JSON= config.INPUT_TABLE_JSON
 OUTPUT_TABLE_JSON = config.OUTPUT_TABLE_JSON
-BASE_COMP = config.BASE_COMP
+BASE_OCC= config.BASE_OCC
 
 # Resource location for command icons, here we assume a sub folder in this directory named "resources".
 ICON_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources', '')
@@ -55,10 +55,8 @@ table_configs = {
             {'col_name': 'name', 'attr': 'name', 'selectable': 1 },
             {'col_name': 'object_type', 'attr': 'objectType', 'selectable': 0 },
         ]
-
     },
     'param_table': {
-
         'table_id': 'param_table',
         'row_attrs' : {'entityToken': 'entityToken', 'objectType': 'objectType', 'name': 'name'},
         # columns to display in input table
@@ -68,11 +66,8 @@ table_configs = {
             {'col_name': 'value', 'attr': 'value' },
             {'col_name': 'role', 'attr': 'role'},
         ]
-
     },
-
     'text_table': {
-
         'table_id': 'text_table',
         'row_attrs' : {'entityToken': 'entityToken', 'objectType': 'objectType', 'name': 'text'},
         # columns to display in input table
@@ -82,44 +77,41 @@ table_configs = {
             {'col_name': 'fontName', 'attr': 'fontName', 'selectable': 1 },
             {'col_name': 'height', 'attr': 'height' },
         ]
+    },
+    'output_table': {
+        'table_id': 'output_table',
+        'row_attrs' : {'entityToken': 'entityToken', 'objectType': 'objectType'},
+        'cols': [
+            {'col_name': 'object_name', 'display': 1, 'selectable': 0 },
+            {'col_name': 'var_val', 'display': 1, 'selectable': 0 },
+            {'col_name': 'object_type', 'display': 1, 'selectable': 0 },
+        ]
+
     }
 
-}
+
+} # end table configs
 
 comp_table_config = table_configs['comp_table']
 param_table_config = table_configs['param_table']
 text_table_config = table_configs['text_table']
+output_table_config = table_configs['output_table']
 
-output_table_config = {
-
-    'table_id': 'output_table',
-    'cols': [
-        {'col_name': 'object_name', 'display': 1, 'selectable': 0 },
-        {'col_name': 'object_type', 'display': 1, 'selectable': 0 },
-        {'col_name': 'var_val', 'display': 1, 'selectable': 0 },
-    ]
-} # end text_table_config
 
 
 # setting for component creation
 OUTPUT_SETTINGS = {
-
     'save_stl':False,
     'save_dir':'',
     'create_new_components': True
-
-
 }
 
-# data added here for the input tables
-TABLE_DATA = {}
 
 def print(string):
     '''redefine print function'''
     if len(str(string)) == 0:
         return
     futil.log(str(string))
-
 
 # Executed when add-in is run.
 def start():
@@ -150,24 +142,20 @@ def start():
     control.isPromoted = IS_PROMOTED
 
 
-
 def export_to_stl(exportMgr, comp, file_name):
-
     # directory where stl files are saved
     stl_base_dir = OUTPUT_SETTINGS['save_dir']
 
     save_path = os.path.join(stl_base_dir, f'{file_name}.stl')
     # export the root compoennt
 
-    stlExportOptions = exportMgr.createSTLExpORToPtions(comp, save_path)
+    stlExportOptions = exportMgr.createSTLExportOptions(comp, save_path)
 
     exportMgr.execute(stlExportOptions)
 
 
-
 # Function called when a user clicks the corresponding button in the UI.
 def command_created(args: adsk.core.CommandCreatedEventArgs):
-
     # Connect to the events that are needed by this command.
     futil.add_handler(args.command.execute, command_execute, local_handlers=local_handlers)
     futil.add_handler(args.command.inputChanged, command_input_changed, local_handlers=local_handlers)
@@ -225,7 +213,6 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     n_comps_text_box = inputs.addTextBoxCommandInput('n_comps_text_box', 'Components To Create:', '0', 1, True)
 
 
-
 def select_output_dir():
     '''seclect local save location for spreadsheet'''
 
@@ -258,21 +245,40 @@ def select_spreadsheet():
     else:
         return 'None'
 
+    # if 20 blank cells in a row are encountered assume row is finished (rest are blank)
+    max_col_check = 20
+    #max_col_check = 40
     with open(filename, 'r', newline='', encoding='utf-8-sig') as csvfile:
-        csv_data= csv.reader(csvfile, delimiter=',', quotechar='|')
+        csv_data = csv.reader(csvfile, delimiter=',', quotechar='|')
 
+        # list col that contains any data
+        start_col = 0
         spreadsheet_data = []
         for index, row in enumerate(csv_data):
             if index == 0:
-                headers = row
+
+                # iterate over row cells, prevent reading in blank cells
+                for cell_index, c in enumerate(row):
+                    if c != '':
+                        end_col = cell_index
+                    if cell_index > max_col_check:
+                        break
+
+                headers = row[:end_col]
                 SPREADSHEET['col_headers'] = headers
             else:
-                row_dict = {headers[i] :c for i,c in enumerate(row)}
+                # prevent reading in empty rows
+                row_sum = sum([len(c) for i,c in enumerate(row)])
 
+                if row_sum == 0:
+                    continue
+
+                row_dict = {header: row[i] for i, header in enumerate(headers)}
+                print(row_dict)
                 spreadsheet_data.append(row_dict)
 
         SPREADSHEET['data'] = spreadsheet_data
-    # used to set text box val
+        # used to set text box val
     return filename
 
 
@@ -290,124 +296,15 @@ def create_table(inputs, table_config):
     return table_input
 
 
-def update_base_comp(comp_entity):
+def update_base_occ(occ_entity):
     '''update global object which stores component entityToken'''
-    BASE_COMP['entityToken'] = comp_entity.entityToken
+    BASE_OCC['entityToken'] = occ_entity.entityToken
 
-
-def make_components(SPREADSHEET=SPREADSHEET):
-    '''make new components'''
-
-    # root component of the active design.
-    root_comp = design.rootComponent
-
-    # master component to be copied
-    master_comp = design.findEntityByToken(BASE_COMP['entityToken'])[0]
-
-    # create a single exportManager instance
-    exportMgr = design.exportManager
-
-    # initial param values storred untill end to reset master comp
-    initial_vals ={}
-
-    # max x and y of the master component, used to reposition new componenent
-    comp_x_min = round( master_comp.boundingBox.minPoint.x, 3)
-    comp_x_max = round( master_comp.boundingBox.maxPoint.x, 3)
-    comp_x_len = abs(comp_x_min - comp_x_max)
-
-    comp_y_min = round( master_comp.boundingBox.minPoint.y, 3)
-    comp_y_max = round( master_comp.boundingBox.maxPoint.y, 3)
-    comp_y_len = abs(comp_y_min - comp_y_max)
-
-    x_trans = comp_x_max
-
-    initial_y_trans = abs(comp_y_max)
-    y_trans = 0
-    x_gap = 1
-    y_gap = 1
-
-    # spreadsheet list of unique component configs
-    config_list = SPREADSHEET['data']
-    n_confs = len(config_list)
-
-    # used rounded sqrt to place components in a grid
-    output_row_len = round(math.sqrt(n_confs))
-
-    # make new components
-    for index, row in enumerate(config_list):
-        # set new attributes on master comp before copy
-        for k, v in OUTPUT_TABLE_JSON.items():
-            # sketchText object, modelParameter, etc
-            attr_object = design.findEntityByToken(v['entityToken'])[0]
-            attr_name = v['attr']
-            # save initial component vals, reset to these later
-            if index == 0:
-                initial_vals[v['cell_val']] = getattr(attr_object, attr_name)
-            # new object val
-            new_val = row[v['cell_val']]
-            setattr(attr_object, attr_name, new_val)
-
-        if OUTPUT_SETTINGS['create_new_components'] == True:
-
-            # max x and y of the base model
-            comp_x_min = round(master_comp.boundingBox.minPoint.x, 2)
-            comp_x_max = round(master_comp.boundingBox.maxPoint.x, 2)
-            comp_x_len = abs(comp_x_min - comp_x_max)
-
-            new_occ = root_comp.occurrences.addNewComponentCopy(master_comp, adsk.core.Matrix3D.create())
-            new_comp = new_occ.component
-            #new_comp.name = comp_name
-
-            # move half the new com width 
-            x_trans += (comp_x_len+ x_gap)/2
-
-            # new row creation
-            if (index+1) % output_row_len == 0:
-                comp_y_min = round(master_comp.boundingBox.minPoint.y, 2)
-                comp_y_max = round(master_comp.boundingBox.maxPoint.y, 2)
-                comp_y_len = abs(comp_y_min - comp_y_max)
-                y_trans += (initial_y_trans + (abs(comp_y_min) + y_gap/2))
-                initial_y_trans = abs(comp_y_max) + y_gap/2
-                # reset x trans for new row
-                x_trans = 0
-
-            vector = adsk.core.Vector3D.create(x_trans, y_trans, 0.0)
-            # add the other half width for next iteration
-            x_trans += (comp_x_len+ x_gap)/2
-
-            transform = adsk.core.Matrix3D.create()
-            transform.translation = vector
-            new_occ.transform = transform
-
-        # save st;
-        if OUTPUT_SETTINGS['save_stl'] == True:
-            export_to_stl(exportMgr, master_comp, master_comp.name)
-
-        try:
-           design.snapshots.add()
-        except Exception as e:
-           print(str(e))
-
-    # reset comp to initial values
-    for k, v in OUTPUT_TABLE_JSON.items():
-        # sketchText object, modelParameter, etc
-        attr_object = design.findEntityByToken(v['entityToken'])[0]
-        attr_name = v['attr']
-        new_val = initial_vals[v['cell_val']]
-        setattr(attr_object, attr_name, new_val)
-
-    try:
-       design.snapshots.add()
-    except Exception as e:
-       print(str(e))
-
-    # recompute new parametric vals
-    design.computeAll()
 
 def create_table_json(selections: list, table_config: dict, spreadsheet=SPREADSHEET):
     '''
     selection: selected objects (component occurence, sketchTexts)
-    create json dict window tables will read values from
+    create json dict that window tables will read values from
 
     '''
     # sub entity attrs
@@ -420,7 +317,7 @@ def create_table_json(selections: list, table_config: dict, spreadsheet=SPREADSH
         return None
 
     ent_iter = []
-    # iterate over entities passed in
+    # iterate over entities passed in, handle for sever different types of objects
     for ent_index, ent in enumerate(selections, 1):
         if isinstance(ent, ModelParameters):
             params = ent
@@ -439,10 +336,11 @@ def create_table_json(selections: list, table_config: dict, spreadsheet=SPREADSH
     # sub entities (modelParameter, sketchText) 
     for sub_ent in ent_iter:
         # column dict, contains object attr key, info about display and visablity for gui table
-        # cells in row
-        row = []
-        row_dict = {}
 
+        # cells in row
+        cells = []
+        # dict containing both cells and meta info for object
+        row_dict = {}
         # index/id values for row (entiry)
         for k, v in table_config['row_attrs'].items():
             row_dict[k] = getattr(sub_ent, v)
@@ -459,28 +357,33 @@ def create_table_json(selections: list, table_config: dict, spreadsheet=SPREADSH
                 elif (k == 'selectable') and (v==1):
                     cell_dict[f'selection'] = spreadsheet_headers
                     cell_dict[f'selectable'] = 1
-
                 #val_dict[['col_name'] = col_dict['col_name']
                 else:
                     cell_dict[k] = v
 
-            row.append(cell_dict)
+            # add to list of cells
+            cells.append(cell_dict)
 
-        row_dict['cells'] = row
+        row_dict['cells'] = cells
+
+        # add row dict (inluding cells) to list of rows
         row_list.append(row_dict)
-
 
     table_json = {'table_id': table_config['table_id'], 'table_rows':row_list}
 
     #print(json.dumps(row_list, indent=4))
-    TABLE_DATA[table_config['table_id']] = table_json
+    INPUT_TABLE_JSON[table_config['table_id']] = table_json
 
     return table_json
 
+def update_output_json(changed_input, input_table_data=INPUT_TABLE_JSON) -> None:
+    '''
+    updates output table
+    get input_json table when config is dropdown value is changed
+    called from input_change, and input table update
+    '''
 
-def get_output_table(changed_input, table_data=TABLE_DATA):
-    '''get input_json table when config is dropdown value is changed'''
-
+    design = app.activeProduct #stsi
     #print(f'id: {changed_input.id}')
     cell_type, table_id, col_name, row, col = changed_input.id.split('__')
 
@@ -489,7 +392,7 @@ def get_output_table(changed_input, table_data=TABLE_DATA):
     # value of selected item
     current_cell_val = changed_input.selectedItem.name
 
-    input_row = table_data[table_id]['table_rows'][row]
+    input_row = input_table_data[table_id]['table_rows'][row]
 
     # row base object entity token/ name
     entityToken = input_row['entityToken']
@@ -506,7 +409,6 @@ def get_output_table(changed_input, table_data=TABLE_DATA):
     output_row_key = f'{col_name}_{row}'
 
     if current_cell_val != initial_cell_val:
-
         # base entity of changed val
         entity = design.findEntityByToken(entityToken)[0]
 
@@ -514,13 +416,13 @@ def get_output_table(changed_input, table_data=TABLE_DATA):
         OUTPUT_TABLE_JSON[output_row_key] = output_dict
 
 
+    # if current cell val has not changed dont 
     elif current_cell_val == initial_cell_val:
         if OUTPUT_TABLE_JSON.get(output_row_key):
             del OUTPUT_TABLE_JSON[output_row_key]
 
 
-
-def fill_input_table(table_input: adsk.core.TableCommandInput, table_json):
+def fill_input_table(table_input: adsk.core.TableCommandInput, table_json={}):
     '''
     fill in table data
     '''
@@ -588,7 +490,8 @@ def fill_input_table(table_input: adsk.core.TableCommandInput, table_json):
 
                 # Add the inputs to the table.
                 table_input.addCommandInput(cell_input, row_index, col_index, 0, 0)
-                get_output_table(cell_input)
+                # update output table
+                update_output_json(cell_input)
 
             if cell.get('selectable') != 1:
                 # create text box, this the "cell"
@@ -603,9 +506,11 @@ def fill_input_table(table_input: adsk.core.TableCommandInput, table_json):
     if table_input.rowCount > table_input.maximumVisibleRows:
         table_input.maximumVisibleRows = table_input.rowCount
 
-
 def fill_output_table(table_input: adsk.core.TableCommandInput, table_json={}):
-    '''add rows to output table'''
+    '''
+    Add rows to output table
+    table json, is the row data from the 3 input tables
+    '''
 
     inputs = adsk.core.CommandInputs.cast(table_input.commandInputs)
 
@@ -615,11 +520,12 @@ def fill_output_table(table_input: adsk.core.TableCommandInput, table_json={}):
 
     headers = [k for k in table_rows[0].keys()]
 
+    # make headers
     for i, h in enumerate(headers):
         if h == 'entityToken':
             continue
         column_name = f'<b style=color:"black";>{h}</b>'
-        cell_input = inputs.addTextBoxCommandInput(f'{h}', formattedText=f'{h}', name=f'{column_name}', numRows=1, isReadOnly=True)
+        cell_input = inputs.addTextBoxCommandInput(f'{h}', formattedText=column_name, name=f'{h}', numRows=1, isReadOnly=True)
         # Add the inputs to the table.
         table_input.addCommandInput(cell_input, 0, i, 0, 0)
 
@@ -644,6 +550,7 @@ def fill_output_table(table_input: adsk.core.TableCommandInput, table_json={}):
 
 
 
+
 # This function will be called when the user changes anything in the command dialog.
 def command_input_changed(args: adsk.core.InputChangedEventArgs):
     changed_input = args.input
@@ -660,6 +567,7 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
 
     output_table_input = inputs.itemById('output_table')
 
+    # number of components to modify text value, updated when spreadsheed is selected
     n_comps_text_box = inputs.itemById('n_comps_text_box')
 
     # select spreadsheet
@@ -701,7 +609,6 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
         else:
             OUTPUT_SETTINGS['create_new_components'] = False
 
-
     # component
     if changed_input.id == 'component_input':
         if comp_input.selectionCount > 0:
@@ -716,28 +623,32 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
             fill_input_table(comp_table_input, comp_table_json )
             # param table
             param_selections = [comp_input.selection(s).entity.component.modelParameters for s in range(comp_input.selectionCount)]
-            update_base_comp(comp_input.selection(0).entity.component)
+            # after component selected, update global entityToken, used to identify component when deleteing
+            # base occ
+            update_base_occ(comp_input.selection(0).entity)
             param_table_input.clear()
 
+            # json date to fill in input param table
             param_table_json = create_table_json(param_selections, param_table_config)
             # handle for no spreadsheet dialog box
             if param_table_json is None:
                 return
             fill_input_table(param_table_input, param_table_json )
             output_table_input.clear()
+
             # call function here to fill table with initialy matched cells
             fill_output_table(output_table_input, OUTPUT_TABLE_JSON)
 
     # when sketch text is selected
     if changed_input.id == 'sketch_text_input':
-        print("TEXT EVENT")
         if sketch_text_input.selectionCount > 0:
             selections = [sketch_text_input.selection(s).entity for s in range(0, sketch_text_input.selectionCount)]
             text_table_input.clear()
+
             text_table_json = create_table_json(selections, text_table_config)
+
             if text_table_json is None:
                 return
-
             fill_input_table(text_table_input, text_table_json)
             output_table_input.clear()
             # call function here to fill table with initialy matched cells
@@ -745,19 +656,208 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
 
     # when dropdown input is changed
     if changed_input.id.split('_')[0] == 'dropdown':
-        get_output_table(changed_input)
+        update_output_json(changed_input)
         output_table_input.clear()
         fill_output_table(output_table_input, OUTPUT_TABLE_JSON)
 
-        #print(f'OUTPUT_TABLE_JSON: {json.dumps(OUTPUT_TABLE_JSON, indent=4)}')
+
+
+def make_components(SPREADSHEET=SPREADSHEET):
+    '''make new components'''
+
+    # current active design
+    design = app.activeProduct
+
+    # root component of the active design.
+    root_comp = design.rootComponent
+
+    # master occurrence to be copied
+    master_occ = design.findEntityByToken(BASE_OCC['entityToken'])[0]
+    master_comp = master_occ.component
+
+    # initial param values storred untill end to reset master comp
+    initial_vals ={}
+
+    # spreadsheet list of unique component configs
+    config_list = SPREADSHEET['data']
+
+    # number of new components to make
+    n_confs = len(config_list)
+
+    # used rounded sqrt to place components in a grid
+    output_row_len = round(math.sqrt(n_confs))
+
+    # list of created occurences
+    occ_list = []
+    occ_list.append(master_occ)
+
+    # make new components
+    for index, row in enumerate(config_list):
+        # set new attributes on master comp before copy
+
+        comp_name = None
+        for k, v in OUTPUT_TABLE_JSON.items():
+            # sketchText object, modelParameter, etc
+            attr_object = design.findEntityByToken(v['entityToken'])[0]
+
+            attr_name = v['attr']
+
+            # save initial component vals, reset to these later
+            if index == 0:
+                initial_vals[v['cell_val']] = getattr(attr_object, attr_name)
+            # new object val
+            new_val = row[v['cell_val']]
+
+            if attr_name == 'name':
+                comp_name = new_val
+                continue
+
+            if hasattr(attr_object, attr_name):
+                try:
+                    setattr(attr_object, attr_name, new_val)
+                except Exception as e:
+                    print(f'ERROR: {e}, NAME: {attr_name}, VAL: {new_val}')
+            else:
+                print(f'ERROR: ATTR {attr_name} NOT FOUND: {new_val}')
+
+
+        new_occ = root_comp.occurrences.addNewComponentCopy(master_comp, adsk.core.Matrix3D.create())
+
+        # set name after so fusion doesnt auto number as duplicate
+        if comp_name:
+            new_occ.component.name = comp_name
+
+        # add new comp occurrence to list, used to arrange and export components
+        occ_list.append(new_occ)
+
+
+
+    # reset comp to initial values
+    for k, v in OUTPUT_TABLE_JSON.items():
+        # sketchText object, modelParameter, etc
+        attr_object = design.findEntityByToken(v['entityToken'])[0]
+        attr_name = v['attr']
+        new_val = initial_vals[v['cell_val']]
+        setattr(attr_object, attr_name, new_val)
+
+    # recompute new parametric vals
+    design.computeAll()
+
+    # list of newly created componenet occurences
+    return occ_list
+
+
+def arange_comps(occ_list):
+    '''arange_components'''
+
+    # active design
+    design = app.activeProduct #stsi
+
+    # bounds for master occ
+    row_max_comp_height = 0
+    bodies = occ_list[0].bRepBodies
+    n_bodies = bodies.count
+    body_boxes = [bodies.item(i).boundingBox for i in range(n_bodies)]
+    master_body_min_x = min([b.minPoint.x for b in body_boxes])
+    master_body_max_x = max([b.maxPoint.x for b in body_boxes])
+    master_body_min_y= min([b.minPoint.y for b in body_boxes])
+    master_body_max_y = max([b.maxPoint.y for b in body_boxes])
+
+    master_body_x_len = abs(master_body_max_x - master_body_min_x)
+    master_body_y_len = abs(master_body_max_y - master_body_min_x)
+    # spreadsheet list of unique component configs
+
+    n_comps = len(occ_list)
+    # used rounded sqrt to place components in a grid
+    output_row_len = round(math.sqrt(n_comps))
+    x_trans = 0
+    #initial_y_trans = abs(comp_y_max)
+    y_bottom = master_body_max_y
+    x_gap = 0
+    y_gap = 0
+
+    for index, occ in enumerate(occ_list[1:]):
+
+        # bodies in occurrence
+        bodies = occ.bRepBodies
+        n_bodies = bodies.count
+
+        body_boxes = [bodies.item(i).boundingBox for i in range(n_bodies)]
+        body_min_x = min([b.minPoint.x for b in body_boxes])
+        body_max_x = max([b.maxPoint.x for b in body_boxes])
+        body_min_y= min([b.minPoint.y for b in body_boxes])
+        body_max_y = max([b.maxPoint.y for b in body_boxes])
+        body_len_x = abs(body_max_x - body_min_x)
+        body_len_y = abs(body_max_y - body_min_y)
+
+        # new row creation, above current row
+        if index % output_row_len == 0:
+            # bottom edge of master comp
+            y_bottom += row_max_comp_height
+            # start each new row aligned to master_body_min_x left edge
+            x_trans = master_body_min_x
+
+        ## move half the new comp width 
+        comp_x_trans = x_trans - (body_min_x)
+
+        ## get tallest y of comps in row
+        row_max_comp_height = max(body_len_y, row_max_comp_height)
+        comp_y_trans = y_bottom + (-body_min_y )
+
+        vector = adsk.core.Vector3D.create(comp_x_trans, comp_y_trans, 0.0)
+        transform = adsk.core.Matrix3D.create()
+        transform.translation = vector
+        occ.transform2 = transform
+
+        # set max row height for first element in each row
+        if index % output_row_len == 0:
+            row_max_comp_height = body_len_y
+
+        # adjust x transition for next occurrence
+        x_trans += ( (body_len_x) + x_gap/2)
+
+        # capture position
+        try:
+           design.snapshots.add()
+        except Exception as e:
+           print(str(e))
+
+
+def save_stls(occ_list):
+    '''save new components as stl'''
+
+    design = app.activeProduct
+
+    # create a single exportManager instance, for STL file export
+    exportMgr = design.exportManager
+
+    for index, occ in enumerate(occ_list[1:]):
+        occ_name = occ.component.name
+
+        export_to_stl(exportMgr, occ, occ_name)
+
+        print(f'SAVED STL: {occ_name}')
+
 
 
 
 # This function will be called when the user clicks the OK button in the command dialog.
 def command_execute(args: adsk.core.CommandEventArgs):
     # run function to create components with substituted parameters/ save stl
-    make_components()
 
+    new_occs = make_components()
+
+    arange_comps(new_occs)
+
+    # save st;
+    if OUTPUT_SETTINGS['save_stl'] == True:
+        save_stls(new_occs)
+
+    config.MODEL_CONFIG_DATA = {}
+    config.SPREADSHEET = {}
+    # data used to create output table of seleted parameters
+    config.INPUT_TABLE_JSON = {}
+    config.OUTPUT_TABLE_JSON = {}
 
 
 # Executed when add-in is stopped.

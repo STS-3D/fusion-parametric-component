@@ -11,7 +11,7 @@ import os
 # more information is written to the Text Command window. Generally, it's useful
 # to set this to True while developing an add-in and set it to False when you
 # are ready to distribute it.
-DEBUG = False
+DEBUG = True
 
 # Gets the name of the add-in from the name of the folder the py file is in.
 # This is used when defining unique internal names for various UI elements 
@@ -34,7 +34,8 @@ my_panel_after = ''
 MODEL_CONFIG_DATA = {}
 SPREADSHEET= {}
 # data used to create output table of seleted parameters
+INPUT_TABLE_JSON = {}
 OUTPUT_TABLE_JSON = {}
-BASE_COMP = {}
+BASE_OCC = {}
 
 

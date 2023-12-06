@@ -13,7 +13,6 @@ from adsk.core import MessageBoxButtonTypes
 app = adsk.core.Application.get()
 ui = app.userInterface
 
-design = app.activeProduct #stsi
 # default 
 
 # coippied from default extension
@@ -35,7 +34,7 @@ CONFIG = config.MODEL_CONFIG_DATA
 
 SPREADSHEET = config.SPREADSHEET
 OUTPUT_TABLE_JSON= config.OUTPUT_TABLE_JSON
-BASE_COMP = config.BASE_COMP
+BASE_OCC = config.BASE_OCC
 
 # Resource location for command icons, here we assume a sub folder in this directory named "resources".
 ICON_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources', '')
@@ -120,11 +119,12 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
 def delete_components():
     '''make new components'''
 
+    design = app.activeProduct #stsi
     # root component of the active design.
     root_comp = design.rootComponent
 
-    master_comp = design.findEntityByToken(BASE_COMP['entityToken'])[0]
-    #master_comp = master_occ.component
+    master_occ= design.findEntityByToken(BASE_OCC['entityToken'])[0]
+    master_comp = master_occ.component
 
     # root component of the active design.
     root_comp = design.rootComponent

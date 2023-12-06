@@ -10,7 +10,6 @@
  This Add-In is especialy usefull when components are designed to be 3d printed
 
 # Instalation
-
 ## Download
 1. Download this extension onto you computer, either by downloading the zip file, or running: `git clone https://github.com/STS-3D/fusion-parametric-component.git` in terminal
 

@@ -449,6 +449,8 @@ def fill_input_table(table_input: adsk.core.TableCommandInput, table_json={}):
 
     # create by rows
     for row_index, row in enumerate(table_rows):
+
+        # offset for header
         row_index +=1
 
         # param name/ initial sketch text val etc
@@ -464,7 +466,6 @@ def fill_input_table(table_input: adsk.core.TableCommandInput, table_json={}):
             if cell.get('selectable') == 1:
                 # add spreadsheet param data
                 cell_input = inputs.addDropDownCommandInput(f'dropdown__{cell_id}', f'{cell_val}', drop_down_style)
-
                 dropdown_items = cell_input.listItems
 
                 # if row name found in spreadsheet headers set to True, dont select inital val then
@@ -771,8 +772,8 @@ def arange_comps(occ_list):
     # used rounded sqrt to place components in a grid
     output_row_len = round(math.sqrt(n_comps))
     x_trans = 0
-    #initial_y_trans = abs(comp_y_max)
     y_bottom = master_body_max_y
+    # extra space between components when arranged
     x_gap = 0
     y_gap = 0
 
@@ -853,9 +854,9 @@ def command_execute(args: adsk.core.CommandEventArgs):
     if OUTPUT_SETTINGS['save_stl'] == True:
         save_stls(new_occs)
 
+    # clear config data
     config.MODEL_CONFIG_DATA = {}
     config.SPREADSHEET = {}
-    # data used to create output table of seleted parameters
     config.INPUT_TABLE_JSON = {}
     config.OUTPUT_TABLE_JSON = {}
 

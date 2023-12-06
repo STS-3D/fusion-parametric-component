@@ -89,7 +89,6 @@ table_configs = {
 
     }
 
-
 } # end table configs
 
 comp_table_config = table_configs['comp_table']
@@ -260,7 +259,7 @@ def select_spreadsheet():
                 # iterate over row cells, prevent reading in blank cells
                 for cell_index, c in enumerate(row):
                     if c != '':
-                        end_col = cell_index
+                        end_col = cell_index+1
                     if cell_index > max_col_check:
                         break
 

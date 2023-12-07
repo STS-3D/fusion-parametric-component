@@ -31,6 +31,6 @@ my_panel_after = ''
 
 
 # data used to create output table of seleted parameters
-BASE_OCC = {}
+SHARED_REFS = {}
 
 

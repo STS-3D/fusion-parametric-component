@@ -9,6 +9,7 @@ import csv #for reading in local config data from spread sheet
 import json
 import math
 from adsk.fusion import SketchText, Occurrence, ModelParameters, Component
+from adsk.core import MessageBoxButtonTypes, ObjectCollection
 
 app = adsk.core.Application.get()
 ui = app.userInterface
@@ -28,11 +29,6 @@ TAB_NAME = config.my_tab_name
 PANEL_ID = config.my_panel_id
 PANEL_NAME = config.my_panel_name
 PANEL_AFTER = config.my_panel_after
-
-#CONFIG = config.MODEL_CONFIG_DATA
-BASE_OCC= config.BASE_OCC
-
-
 
 INPUT_TABLE_JSON ={}
 OUTPUT_TABLE_JSON = {}
@@ -108,6 +104,7 @@ def config_init():
     CONFIG['save_dir'] = ''
     CONFIG['create_new_components'] = True
     CONFIG['spreadsheet'] = {}
+    CONFIG['master_occ'] = ''
 
 
 
@@ -255,11 +252,13 @@ def select_spreadsheet():
         # store spreadsheet path
         CONFIG['spreadsheet']['path'] = filename
     else:
-        return 'None'
+        CONFIG['spreadsheet']['path'] = ''
+        CONFIG['spreadsheet']['col_headers'] = []
+        CONFIG['spreadsheet']['data'] = []
+        return None
 
     # if 20 blank cells in a row are encountered assume row is finished (rest are blank)
     max_col_check = 20
-    #max_col_check = 40
     with open(filename, 'r', newline='', encoding='utf-8-sig') as csvfile:
         csv_data = csv.reader(csvfile, delimiter=',', quotechar='|')
 
@@ -306,11 +305,6 @@ def create_table(inputs, table_config):
     table_input = inputs.addTableCommandInput(table_id, table_id, n_vis_cols, col_spacing)
 
     return table_input
-
-
-def update_base_occ(occ_entity):
-    '''update global object which stores component entityToken'''
-    BASE_OCC['entityToken'] = occ_entity.entityToken
 
 
 def create_table_json(selections: list, table_config: dict):
@@ -593,7 +587,7 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
             # fills in spreadsheet data
             file_path = select_spreadsheet()
             # spreadsheet text box name
-            spreadsheet_text_box.formattedText = file_path
+            spreadsheet_text_box.formattedText = CONFIG['spreadsheet']['path']
 
             # set text box val for number of rows in spreadsheet
             n_comps_text_box.formattedText = str(len(CONFIG['spreadsheet']['data']))
@@ -637,7 +631,8 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
             param_selections = [comp_input.selection(s).entity.component.modelParameters for s in range(comp_input.selectionCount)]
             # after component selected, update global entityToken, used to identify component when deleteing
             # base occ
-            update_base_occ(comp_input.selection(0).entity)
+            occ_entity = comp_input.selection(0).entity
+            CONFIG['master_occ'] = occ_entity.entityToken
             param_table_input.clear()
 
             # json date to fill in input param table
@@ -684,7 +679,7 @@ def make_components():
     root_comp = design.rootComponent
 
     # master occurrence to be copied
-    master_occ = design.findEntityByToken(BASE_OCC['entityToken'])[0]
+    master_occ = design.findEntityByToken(CONFIG['master_occ'])[0]
     master_comp = master_occ.component
 
     # initial param values storred untill end to reset master comp
@@ -864,6 +859,8 @@ def command_execute(args: adsk.core.CommandEventArgs):
     # save st;
     if CONFIG['save_stl'] == True:
         save_stls(new_occs)
+
+    config.SHARED_REFS['new_occs'] = new_occs[1:]
 
     # remove all global config data
     CONFIG.clear()

@@ -8,7 +8,7 @@ import csv #for reading in local config data from spread sheet
 import json
 import random
 from adsk.fusion import SketchText, Occurrence
-from adsk.core import MessageBoxButtonTypes
+from adsk.core import MessageBoxButtonTypes, ObjectCollection
 
 app = adsk.core.Application.get()
 ui = app.userInterface
@@ -30,9 +30,6 @@ PANEL_ID = config.my_panel_id
 PANEL_NAME = config.my_panel_name
 PANEL_AFTER = config.my_panel_after
 
-
-#OUTPUT_TABLE_JSON= config.OUTPUT_TABLE_JSON
-BASE_OCC = config.BASE_OCC
 
 # Resource location for command icons, here we assume a sub folder in this directory named "resources".
 ICON_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources', '')
@@ -119,35 +116,13 @@ def delete_components():
 
     design = app.activeProduct #stsi
     # root component of the active design.
-    root_comp = design.rootComponent
 
-    master_occ= design.findEntityByToken(BASE_OCC['entityToken'])[0]
-    master_comp = master_occ.component
-
-    # root component of the active design.
-    root_comp = design.rootComponent
-    # all compoents in design
-    components = design.allComponents
-
-    # list of existing componenets to delete
-    comp_delete = []
-    for comp in components:
-        # design root component
-        if comp == root_comp:
-            continue
-        # master component to keep
-        elif comp.entityToken == master_comp.entityToken:
-            continue
-        else:
-            comp_delete.append(comp)
-
-
-    # delete all occurences of existing components
-    for dcomp in comp_delete:
-        for occ in root_comp.allOccurrencesByComponent(dcomp):
-            print(f'Deleted: {dcomp.name}')
-            occ.deleteMe()
-
+    new_occs = config.SHARED_REFS.get('new_occs')
+    if new_occs:
+        # object collection to delete
+        to_delete = ObjectCollection.createWithArray(new_occs)
+        design.deleteEntities(to_delete)
+        config.SHARED_REFS['new_occs'] == None
 
     # recompute new parametric vals
     design.computeAll()

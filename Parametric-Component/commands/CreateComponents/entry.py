@@ -215,8 +215,8 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     # spreadsheet checkbox, weather or not to make actual new components
     make_new_components = inputs.addBoolValueInput('create_new_components','Create New Components', True, '', True)
 
-    # export to csv or not
-    export_csv = inputs.addBoolValueInput('export_csv', 'Export as CSV', True)
+    # export to stl or not
+    export_stl= inputs.addBoolValueInput('export_stl', 'Export as STL', True)
 
     # number of components that will be created
     n_comps_text_box = inputs.addTextBoxCommandInput('n_comps_text_box', 'Components To Create:', '0', 1, True)
@@ -600,7 +600,7 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
         text_table_input.clear()
 
     # save dir checkbox
-    if changed_input.id == 'export_csv':
+    if changed_input.id == 'export_stl':
         # sets output dir location for stls
         if changed_input.value == True:
             select_output_dir()
@@ -838,6 +838,7 @@ def save_stls(occ_list):
     # create a single exportManager instance, for STL file export
     exportMgr = design.exportManager
 
+    # first item in list is master occ, dont't save
     for index, occ in enumerate(occ_list[1:]):
         occ_name = occ.component.name
 

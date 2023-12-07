@@ -29,12 +29,16 @@ PANEL_ID = config.my_panel_id
 PANEL_NAME = config.my_panel_name
 PANEL_AFTER = config.my_panel_after
 
-CONFIG = config.MODEL_CONFIG_DATA
-
-SPREADSHEET = config.SPREADSHEET
-INPUT_TABLE_JSON= config.INPUT_TABLE_JSON
-OUTPUT_TABLE_JSON = config.OUTPUT_TABLE_JSON
+#CONFIG = config.MODEL_CONFIG_DATA
 BASE_OCC= config.BASE_OCC
+
+
+
+INPUT_TABLE_JSON ={}
+OUTPUT_TABLE_JSON = {}
+CONFIG = {}
+
+
 
 # Resource location for command icons, here we assume a sub folder in this directory named "resources".
 ICON_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources', '')
@@ -98,12 +102,13 @@ output_table_config = table_configs['output_table']
 
 
 
-# setting for component creation
-OUTPUT_SETTINGS = {
-    'save_stl':False,
-    'save_dir':'',
-    'create_new_components': True
-}
+def config_init():
+    '''called when initial window opened'''
+    CONFIG['save_stl'] = False
+    CONFIG['save_dir'] = ''
+    CONFIG['create_new_components'] = True
+    CONFIG['spreadsheet'] = {}
+
 
 
 def print(string):
@@ -143,7 +148,7 @@ def start():
 
 def export_to_stl(exportMgr, comp, file_name):
     # directory where stl files are saved
-    stl_base_dir = OUTPUT_SETTINGS['save_dir']
+    stl_base_dir = CONFIG['save_dir']
 
     save_path = os.path.join(stl_base_dir, f'{file_name}.stl')
     # export the root compoennt
@@ -160,8 +165,16 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     futil.add_handler(args.command.inputChanged, command_input_changed, local_handlers=local_handlers)
     futil.add_handler(args.command.destroy, command_destroy, local_handlers=local_handlers)
 
+    # create flobal data
+    config_init()
+
     # inputs in dialog box
     inputs = args.command.commandInputs
+    n_inputs = inputs.count
+    print(n_inputs)
+    for input_n in range(n_inputs):
+        c_input = inputs.item(input_n)
+        print(f'name: {c_input.name}')
 
     # spreadsheet checkbox
     select_spreadsheet = inputs.addBoolValueInput('select_spreadsheet', 'Select Spreadsheet', True)
@@ -223,8 +236,8 @@ def select_output_dir():
     dialogResult = folderDialog.showDialog()
 
     if dialogResult == adsk.core.DialogResults.DialogOK:
-        OUTPUT_SETTINGS['save_stl'] = True
-        OUTPUT_SETTINGS['save_dir'] = folderDialog.folder
+        CONFIG['save_stl'] = True
+        CONFIG['save_dir'] = folderDialog.folder
 
 # prompt user to select spreadsheet
 def select_spreadsheet():
@@ -240,7 +253,7 @@ def select_spreadsheet():
     if dialogResult == adsk.core.DialogResults.DialogOK:
         filename = fileDialog.filename
         # store spreadsheet path
-        SPREADSHEET['path'] = filename
+        CONFIG['spreadsheet']['path'] = filename
     else:
         return 'None'
 
@@ -264,7 +277,7 @@ def select_spreadsheet():
                         break
 
                 headers = row[:end_col]
-                SPREADSHEET['col_headers'] = headers
+                CONFIG['spreadsheet']['col_headers'] = headers
             else:
                 # prevent reading in empty rows
                 row_sum = sum([len(c) for i,c in enumerate(row)])
@@ -276,7 +289,7 @@ def select_spreadsheet():
                 print(row_dict)
                 spreadsheet_data.append(row_dict)
 
-        SPREADSHEET['data'] = spreadsheet_data
+        CONFIG['spreadsheet']['data'] = spreadsheet_data
         # used to set text box val
     return filename
 
@@ -300,7 +313,7 @@ def update_base_occ(occ_entity):
     BASE_OCC['entityToken'] = occ_entity.entityToken
 
 
-def create_table_json(selections: list, table_config: dict, spreadsheet=SPREADSHEET):
+def create_table_json(selections: list, table_config: dict):
     '''
     selection: selected objects (component occurence, sketchTexts)
     create json dict that window tables will read values from
@@ -310,7 +323,7 @@ def create_table_json(selections: list, table_config: dict, spreadsheet=SPREADSH
     sub_ent_config = table_config['cols']
 
     # local spreadsheet headers
-    spreadsheet_headers = SPREADSHEET.get('col_headers')
+    spreadsheet_headers = CONFIG['spreadsheet'].get('col_headers')
     if spreadsheet_headers == None:
         ui.messageBox('Please Select Spreadsheet First', 'Select Spreadsheet First')
         return None
@@ -583,7 +596,7 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
             spreadsheet_text_box.formattedText = file_path
 
             # set text box val for number of rows in spreadsheet
-            n_comps_text_box.formattedText = str(len(SPREADSHEET['data']))
+            n_comps_text_box.formattedText = str(len(CONFIG['spreadsheet']['data']))
 
     # clear data from tables
     if changed_input.id == 'param_table_clear':
@@ -597,22 +610,21 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
         # sets output dir location for stls
         if changed_input.value == True:
             select_output_dir()
-            OUTPUT_SETTINGS['save_stl'] = True
+            CONFIG['save_stl'] = True
         else:
-            OUTPUT_SETTINGS['save_stl'] = False
-            OUTPUT_SETTINGS['stl_dir'] = ''
+            CONFIG['save_stl'] = False
+            CONFIG['stl_dir'] = ''
 
     # create components checkbox
     if changed_input.id == 'create_new_components':
         if changed_input.value == True:
-            OUTPUT_SETTINGS['create_new_components'] = True
+            CONFIG['create_new_components'] = True
         else:
-            OUTPUT_SETTINGS['create_new_components'] = False
+            CONFIG['create_new_components'] = False
 
     # component
     if changed_input.id == 'component_input':
         if comp_input.selectionCount > 0:
-
             comp_selections = [comp_input.selection(s).entity.component for s in range(comp_input.selectionCount)]
             comp_table_json = create_table_json(comp_selections, comp_table_config)
 
@@ -662,7 +674,7 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
 
 
 
-def make_components(SPREADSHEET=SPREADSHEET):
+def make_components():
     '''make new components'''
 
     # current active design
@@ -679,7 +691,7 @@ def make_components(SPREADSHEET=SPREADSHEET):
     initial_vals ={}
 
     # spreadsheet list of unique component configs
-    config_list = SPREADSHEET['data']
+    config_list = CONFIG['spreadsheet']['data']
 
     # number of new components to make
     n_confs = len(config_list)
@@ -850,18 +862,18 @@ def command_execute(args: adsk.core.CommandEventArgs):
     arange_comps(new_occs)
 
     # save st;
-    if OUTPUT_SETTINGS['save_stl'] == True:
+    if CONFIG['save_stl'] == True:
         save_stls(new_occs)
 
-    # clear config data
-    config.MODEL_CONFIG_DATA = {}
-    config.SPREADSHEET = {}
-    config.INPUT_TABLE_JSON = {}
-    config.OUTPUT_TABLE_JSON = {}
+    # remove all global config data
+    CONFIG.clear()
+    INPUT_TABLE_JSON.clear()
+    OUTPUT_TABLE_JSON.clear()
 
 
 # Executed when add-in is stopped.
 def stop():
+
     # Get the various UI elements for this command
     workspace = ui.workspaces.itemById(WORKSPACE_ID)
     panel = workspace.toolbarPanels.itemById(PANEL_ID)
@@ -889,6 +901,12 @@ def stop():
 
 # This function will be called when the user completes the command.
 def command_destroy(args: adsk.core.CommandEventArgs):
+
+    # remove all global config data
+    CONFIG.clear()
+    INPUT_TABLE_JSON.clear()
+    OUTPUT_TABLE_JSON.clear()
+
     global local_handlers
     local_handlers = []
     futil.log(f'{CMD_NAME} Command Destroy Event')

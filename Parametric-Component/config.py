@@ -30,12 +30,7 @@ my_panel_name = ADDIN_NAME
 my_panel_after = ''
 
 
-# define here so data can be used between commands 
-MODEL_CONFIG_DATA = {}
-SPREADSHEET= {}
 # data used to create output table of seleted parameters
-INPUT_TABLE_JSON = {}
-OUTPUT_TABLE_JSON = {}
 BASE_OCC = {}
 
 

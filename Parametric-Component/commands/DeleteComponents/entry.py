@@ -30,10 +30,8 @@ PANEL_ID = config.my_panel_id
 PANEL_NAME = config.my_panel_name
 PANEL_AFTER = config.my_panel_after
 
-CONFIG = config.MODEL_CONFIG_DATA
 
-SPREADSHEET = config.SPREADSHEET
-OUTPUT_TABLE_JSON= config.OUTPUT_TABLE_JSON
+#OUTPUT_TABLE_JSON= config.OUTPUT_TABLE_JSON
 BASE_OCC = config.BASE_OCC
 
 # Resource location for command icons, here we assume a sub folder in this directory named "resources".
